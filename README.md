@@ -108,3 +108,7 @@ solvency fuzz).
 Deployed on Robinhood Chain (4663):
 - v1: `0xd8fd03086fa524914f530533ab0e4ecb03b15784`
 - v2 (with `settleBatch`): `0x76b031721b4b877f7f340c9e896de79c571ca7ae`
+
+### RollaFarmPoolETH
+
+Native-ETH variant of the vault (payable deposits, ETH payouts). Deployed at `0x0f64d2d6ec3280b878c6c55abbbc48e506cc7987` on Robinhood Chain. Same model + tests as RollaFarmPool, ETH-denominated.
