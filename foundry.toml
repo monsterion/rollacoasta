@@ -1,0 +1,11 @@
+[profile.default]
+src = "contracts"
+out = "contracts/out-forge"
+test = "test/forge"
+cache_path = "contracts/cache-forge"
+libs = ["node_modules", "lib"]
+solc = "0.8.28"
+optimizer = true
+optimizer_runs = 500
+remappings = ["@openzeppelin/=node_modules/@openzeppelin/", "forge-std/=lib/forge-std/src/"]
+fuzz = { runs = 256 }
