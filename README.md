@@ -90,3 +90,21 @@ value on it before an independent audit.
 ## License
 
 MIT — see [`LICENSE`](LICENSE).
+
+
+## RollaFarmPool
+
+The real-money liquidity vault behind the game, denominated in the quote
+asset (GME on the live deployment). Liquidity providers deposit and hold
+shares against `houseEquity`; players deposit a withdrawable balance; an
+operator settles game results via `settle` / `settleBatch`, bounded by a
+per-round cap and a solvency invariant that keeps player balances fully
+backed at all times. LP and player funds are withdrawable at any time,
+even while paused. See `contracts/RollaFarmPool.sol`; tests in
+`test/forge/RollaFarmPool.t.sol` (share math, deposit/withdraw, win/loss
+settlement, atomic bounded batch settlement, pause, and a 256-run
+solvency fuzz).
+
+Deployed on Robinhood Chain (4663):
+- v1: `0xd8fd03086fa524914f530533ab0e4ecb03b15784`
+- v2 (with `settleBatch`): `0x76b031721b4b877f7f340c9e896de79c571ca7ae`
