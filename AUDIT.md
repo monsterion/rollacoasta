@@ -133,7 +133,23 @@ proof** — the house cannot choose noise/regime/order flow after the fact.
 - The verifier is large: ~180 (optimistic) / ~240 (batch) deployed contracts due to the
   EIP-170 split of the constraint evaluator.
 
-## 6. How to reproduce a proof
+## 6. Testing & pre-audit battle-testing
+
+- **86 differential/unit tests** — every Solidity verifier component reproduces p3's
+  output exactly (field, transcript, Merkle, FRI, DEEP, constraint fold/quotient),
+  and full round + batch proofs verify end-to-end on-chain.
+- **Stateful invariant fuzzing (custody layer)** — `test/forge/FarmPoolInvariant.t.sol`:
+  25,000 random adversarial sequences of LP/player/operator actions (500 runs × 50
+  depth), 0 reverts. Holds: **solvency** (`playerLiabilities ≤ vault balance`),
+  liabilities = Σ player balances, share consistency, no free value.
+- **P&L clamp fuzzing** — `test/forge/PositionsPnlFuzz.t.sol`: 5,000 fuzzed
+  (side, leverage, collateral, init, final) across the full input space (incl. extreme
+  prices) — every settlement stays within `[−collateral, +winCap·collateral]`.
+- **Live on testnet 46630** — both settlement stacks deployed; the round verifier and
+  the batch verifier each verified a real proof on-chain (returning the exact bound
+  public values / batchCommit), and a full optimistic round settled real funds.
+
+## 7. How to reproduce a proof
 
 `zk/stark` (Rust, Plonky3 0.6.3): `cargo run --release --bin generate_round_stark`
 (single round) or `generate_batch_stark` (N rounds) emits the serialized proof
