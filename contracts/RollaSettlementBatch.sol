@@ -25,6 +25,10 @@ pragma solidity ^0.8.28;
 
 import "./verifier/Poseidon2Goldilocks.sol";
 
+interface IProofRegistry {
+    function read(address submitter, uint256 proofId) external view returns (bytes memory);
+}
+
 interface IBatchVerifierEntry {
     /// Verify a BatchRoundAir proof; returns the single public value `batchCommit`.
     function verify(bytes calldata proof) external view returns (uint64 batchCommit);
@@ -37,6 +41,7 @@ interface ISettlePool {
 
 contract RollaSettlementBatch {
     IBatchVerifierEntry public immutable verifier;
+    IProofRegistry public registry; // optional: settle with a chunk-stored proof
     ISettlePool public immutable pool;
     address public owner;
 
@@ -92,6 +97,22 @@ contract RollaSettlementBatch {
     /// Verify a batch of N rounds and settle all of them eagerly. `chained` = true
     /// requires each round's init to equal the previous round's final.
     function settleBatch(Round[] calldata rounds, bytes calldata proof, bool chained) external {
+        _settleBatch(rounds, proof, chained);
+    }
+
+    /// Same, but with a proof previously chunk-stored in the ProofRegistry (for
+    /// proofs exceeding the EVM per-tx calldata limit). This tx carries only the
+    /// tiny proofId; the proof is read and verified via an internal call.
+    function settleBatchWithRegistry(Round[] calldata rounds, uint256 proofId, bool chained) external {
+        require(address(registry) != address(0), "no registry");
+        _settleBatch(rounds, registry.read(msg.sender, proofId), chained);
+    }
+
+    function setRegistry(address r) external onlyOwner {
+        registry = IProofRegistry(r);
+    }
+
+    function _settleBatch(Round[] calldata rounds, bytes memory proof, bool chained) internal {
         uint256 n = rounds.length;
         if (n == 0) revert EmptyBatch();
 

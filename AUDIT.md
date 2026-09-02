@@ -132,6 +132,14 @@ proof** — the house cannot choose noise/regime/order flow after the fact.
   (INSECURE) for speed. The `vkey`/AIR pins exactly which program is accepted.
 - The verifier is large: ~180 (optimistic) / ~240 (batch) deployed contracts due to the
   EIP-170 split of the constraint evaluator.
+- **Large-proof delivery — solved via `ProofRegistry.sol`.** A full STARK proof (~120KB
+  now, more at secure query counts) exceeds the EVM ~128KB per-tx calldata limit (and the
+  free-tier RPC caps tx data ~90KB). Fix: the proof is uploaded in ≤24KB chunks (SSTORE2
+  data-contracts), then `disproveWithRegistry` / `settleBatchWithRegistry` read it and
+  verify via an INTERNAL call — which has no tx-size limit. The proof never crosses a
+  transaction boundary as a whole. Round-trip + real-proof disprove are tested
+  (`test/forge/ProofRegistry.t.sol`, `RegistryDispute.t.sol`); `ProofRegistry` is an
+  additional audit item (correctness of chunk reassembly = the exact proof bytes).
 
 ## 6. Testing & pre-audit battle-testing
 

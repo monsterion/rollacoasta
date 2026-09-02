@@ -112,3 +112,42 @@ Deployed on Robinhood Chain (4663):
 ### RollaFarmPoolETH
 
 Native-ETH variant of the vault (payable deposits, ETH payouts). Deployed at `0x0f64d2d6ec3280b878c6c55abbbc48e506cc7987` on Robinhood Chain. Same model + tests as RollaFarmPool, ETH-denominated.
+
+## Testnet benchmarks (Robinhood testnet, chainId 46630 — live)
+
+Measured against the **live deployed** settlement + pool contracts with ~130 real
+microtransactions from a single account (see AUDIT.md for the full trustless-settlement
+system these benchmark).
+
+**Latency & throughput**
+
+| metric | measured |
+|---|---|
+| single-tx latency (submit → confirmed) | **~1.3 s** |
+| pool-op latency (`playerDeposit`) | **~1.4 s** |
+| burst throughput, 1 account (25-tx async) | **~15 tx/s** |
+| block time | **sub-second** (multiple blocks/second) |
+| block gas limit | 1.126 × 10¹⁵ (2⁵⁰) |
+| gas price | 0.01 gwei |
+
+**Per-operation gas (real on-chain `gasUsed`)**
+
+| operation | gas | cost @ 0.01 gwei |
+|---|---|---|
+| self-transfer | 24,451 | ~$0.0000001 |
+| pool `playerDeposit` | 41,363 | ~$0.0000002 |
+| pool `playerWithdraw` | 47,483 | ~$0.0000002 |
+| pool `addLiquidity` | 44,569 | ~$0.0000002 |
+| optimistic `postRound` (settlement) | ~87,000 | ~$0.0000004 |
+| optimistic `finalize` (settles P&L into pool) | ~10.5 M | ~$0.00005 |
+| STARK verify (dispute-only backstop) | ~600 M | ~$0.003 |
+
+**Notes**
+- The chain is sub-second with a 2⁵⁰ block gas limit; the ~1.3 s single-tx figure is
+  RPC round-trip + receipt polling, not chain speed.
+- The **free Alchemy RPC** caps burst submission (~15–25 tx/s per account) and tx
+  calldata (~90 KB). Each player has an independent account/nonce space, so multi-user
+  throughput scales with the chain, not the per-account RPC cap.
+- Large STARK proofs (~120 KB) exceed the ~90 KB tx-calldata limit, so proofs are
+  uploaded in ≤24 KB chunks to `ProofRegistry` and verified via an internal call — no
+  transaction ever carries the full proof (see `contracts/verifier/ProofRegistry.sol`).

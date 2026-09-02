@@ -37,6 +37,10 @@ interface IRoundVerifierEntry {
         returns (uint64 init, uint64 finalPrice, uint64 seed, uint64 roundId, uint64 orderLogHash);
 }
 
+interface IProofRegistry {
+    function read(address submitter, uint256 proofId) external view returns (bytes memory);
+}
+
 interface ISettlePool {
     /// Settle per-player P&L for a round given the proof-bound init and final
     /// prices (RollaPositions computes deltas and forwards to the FarmPool).
@@ -57,6 +61,7 @@ contract RollaSettlementOptimistic {
     }
 
     IRoundVerifierEntry public immutable verifier;
+    IProofRegistry public registry; // optional: for disproving with a chunk-stored proof
     ISettlePool public immutable pool;
     address public owner;
     uint64 public challengeWindow; // seconds
@@ -142,7 +147,22 @@ contract RollaSettlementOptimistic {
 
     /// Disprove a posted result with a valid STARK proof whose bound inputs match
     /// but whose final price differs. Slashes the proposer's bond to the disprover.
+    /// Disprove with the proof supplied directly as calldata (works when the proof
+    /// fits under the tx-size limit).
     function disprove(uint256 roundId, bytes calldata proof) external {
+        _disprove(roundId, proof);
+    }
+
+    /// Disprove with a proof previously chunk-stored in the ProofRegistry under the
+    /// caller's namespace. This is how disputes work when the proof exceeds the EVM
+    /// ~128KB per-tx calldata limit: the proof is uploaded in small chunks, then this
+    /// tiny tx reads it and verifies it via an internal call (no tx-size limit).
+    function disproveWithRegistry(uint256 roundId, uint256 proofId) external {
+        require(address(registry) != address(0), "no registry");
+        _disprove(roundId, registry.read(msg.sender, proofId));
+    }
+
+    function _disprove(uint256 roundId, bytes memory proof) internal {
         Posting storage p = postings[roundId];
         if (p.proposer == address(0)) revert Unknown();
         if (p.finalized || p.voided) revert Done();
@@ -163,6 +183,10 @@ contract RollaSettlementOptimistic {
         emit RoundDisproved(roundId, msg.sender, p.finalPrice, finalPrice);
         (bool ok,) = msg.sender.call{value: bond}("");
         require(ok, "bond transfer failed");
+    }
+
+    function setRegistry(address r) external onlyOwner {
+        registry = IProofRegistry(r);
     }
 
     /// Finalize a round after the challenge window with no successful disprove.
