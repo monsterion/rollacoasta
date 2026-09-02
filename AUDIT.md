@@ -3,12 +3,41 @@
 Concise technical overview of the on-chain settlement system for auditors. Target
 chain: Robinhood Chain (mainnet 4663 / testnet 46630). Solidity 0.8.28, `via_ir` OFF.
 
-## 1. What the system does
+## 0. What RollaCoasta is
 
-RollaCoasta is a browser leveraged-trading game: order flow drives a price path
-computed by a deterministic engine (`src/engine-zk32.js`, fixed-point WAD=2^32).
-Players open leveraged long/short positions; when a round's price path is settled,
-per-player P&L is paid from a liquidity pool.
+RollaCoasta is a browser-playable **leveraged trading game** on Robinhood Chain.
+Each **round**, a price path for an instrument (e.g. `$GUH`) is generated tick-by-tick
+by a deterministic engine whose inputs are (a) **order flow** — the net buy/sell
+imbalance from players and a market maker — and (b) **committed-seed randomness** — a
+regime Markov chain (calm/pump/dump/euphoria), per-tick Gaussian-like noise, and gated
+jumps. Players open **leveraged long/short positions** before/at the round; when the
+round's price path is finalized, each position's P&L (`side · leverage · collateral ·
+(final−init)/init`, clamped to `[−collateral, +winCap·collateral]`) is paid from a
+shared **liquidity pool (FarmPool)**. The house edge lives in the engine's calibrated
+drift/noise, not in any ability to pick outcomes — which is exactly what the STARK
+proof enforces.
+
+## 1. What the settlement system does
+
+The price path is computed off-chain (`src/engine-zk32.js`, fixed-point WAD=2^32) and
+its correctness is proven on-chain, so no operator is trusted with the round outcome or
+with moving player funds. Players open positions; a proven round's per-player P&L is
+settled from the FarmPool.
+
+### FarmPool (the liquidity vault / house)
+
+Two interchangeable implementations of the same model:
+- `RollaFarmPoolETH.sol` — native-ETH vault (deployed on testnet).
+- `RollaFarmPool.sol` — ERC-20-denominated vault (same model, e.g. a game token).
+
+Model: **LPs** add liquidity for shares valued against `houseEquity` (= vault balance −
+player liabilities); **players** hold a withdrawable balance; the **operator** settles
+round P&L via `settleBatch(players, deltas)`. The operator is bounded by three things so
+a compromised operator key cannot drain the pool arbitrarily: a per-round cap
+(`maxSettlePerRound`), `Pausable`, and a hard **solvency invariant** enforced after every
+mutation (`playerLiabilities ≤ vault balance`). `ReentrancyGuard` on all value flows;
+`Ownable` for admin. The operator is set to `RollaPositions`, so **only proven rounds
+move funds**. Unaudited — fund as beta.
 
 The settlement is **trustless**: a round only settles if a **Plonky3 (FRI) STARK
 proof** verifies on-chain that the price path was computed correctly by the canonical
